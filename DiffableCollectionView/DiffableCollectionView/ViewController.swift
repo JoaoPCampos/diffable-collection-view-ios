@@ -17,7 +17,7 @@ class ViewController: UIViewController {
 	
 	private lazy var dataSource = createDataSource()
 	private lazy var collectionView = UICollectionView(frame: .zero,
-											   collectionViewLayout: createCompositionLayout())
+													   collectionViewLayout: createCompositionLayout())
 
 	override func viewDidLoad() {
 		
