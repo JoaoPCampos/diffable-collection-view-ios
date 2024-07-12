@@ -7,33 +7,17 @@
 
 import UIKit
 
-enum Section: Int {
-	case main
-}
-
-enum Item: Hashable {
-	case sample(String, String)
-}
-
 class ViewController: UIViewController {
 
-	typealias DataSource = UICollectionViewDiffableDataSource<Section, Item>
-	typealias Snapshot = NSDiffableDataSourceSnapshot<Section, Item>
+	typealias DataSource = UICollectionViewDiffableDataSource<Section, Sample>
+	typealias Snapshot = NSDiffableDataSourceSnapshot<Section, Sample>
 
-	private let items: [Item] = [
-		.sample("sample 1", "star.fill"),
-		.sample("sample 2", "moon.stars"),
-		.sample("sample 3", "star.leadinghalf.filled"),
-		.sample("sample 4", "star.fill"),
-		.sample("sample 5", "moon.stars"),
-		.sample("sample 6", "star.leadinghalf.filled"),
-		.sample("sample 7", "star.fill"),
-		.sample("sample 8", "moon.stars"),
-		.sample("sample 9", "star.leadinghalf.filled")
-	]
-
-	lazy var collectionView = UICollectionView(frame: .zero, collectionViewLayout: createLayout())
-	lazy var dataSource = createDataSource()
+	private let sections: [Section] = [.mock(.A), .mock(.B), .mock(.C)]
+	private var colapsedSections = [Section.SectionType]()
+	
+	private lazy var dataSource = createDataSource()
+	private lazy var collectionView = UICollectionView(frame: .zero,
+											   collectionViewLayout: createCompositionLayout())
 
 	override func viewDidLoad() {
 		
@@ -49,24 +33,31 @@ private extension ViewController {
 
 		title = "Diffable Collection View"
 		view.backgroundColor = .systemBackground
-
 		view.addSubview(collectionView)
 
-		collectionView.register(SampleCell.self,
-								forCellWithReuseIdentifier: SampleCell.identifier)
-		collectionView.register(SampleHeader.self,
-								forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader, withReuseIdentifier: SampleHeader.identifier)
 		collectionView.translatesAutoresizingMaskIntoConstraints = false
-		collectionView.dataSource = dataSource
+		
+		collectionView.register(SampleCellA.self,
+								forCellWithReuseIdentifier: SampleCellA.reuseIdentifier)
+		
+		collectionView.register(SampleCellB.self,
+								forCellWithReuseIdentifier: SampleCellB.reuseIdentifier)
+
+		collectionView.register(SampleCellC.self,
+								forCellWithReuseIdentifier: SampleCellC.reuseIdentifier)
+
+		collectionView.register(SampleHeader.self,
+								forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader,
+								withReuseIdentifier: SampleHeader.identifier)
 
 		configureConstraints()
-		applySnapshot()
+
+		reloadData()
 	}
 
 	func configureConstraints() {
 
 		NSLayoutConstraint.activate([
-
 
 			collectionView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
 			collectionView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
@@ -75,90 +66,214 @@ private extension ViewController {
 		])
 	}
 
-	func applySnapshot(animatingDifferences: Bool = true) {
+	func configureCell(reuseIdentifier: String,
+					   with sample: Sample,
+					   for indexPath: IndexPath) -> UICollectionViewCell {
 
-		var snapshot = Snapshot()
+		let cell = collectionView.dequeueReusableCell(withReuseIdentifier: reuseIdentifier,
+													  for: indexPath)
 
-		snapshot.appendSections([.main])
-		snapshot.appendItems(items)
+		guard let configurableCell = cell as? ConfigurableCell else {
+			return cell
+		}
 
-		dataSource.apply(snapshot, animatingDifferences: animatingDifferences)
+		configurableCell.configure(with: sample)
+		return cell
 	}
 
 	func createDataSource() -> DataSource {
 
-		let dataSource = DataSource(collectionView: collectionView) { collectionView, indexPath, item in
+		let dataSource: DataSource = UICollectionViewDiffableDataSource(collectionView: collectionView) { collectionView, indexPath, sample in
 
-			let cell = collectionView.dequeueReusableCell(withReuseIdentifier: SampleCell.identifier, for: indexPath) as? SampleCell
+			let reuseIdentifier: String
 
-			switch item {
+			switch self.sections[indexPath.section].type {
 
-				case .sample(let text, let icon):
-					cell?.configure(text: text, systemName: icon)
+				case .A: reuseIdentifier = SampleCellA.reuseIdentifier
+				case .B: reuseIdentifier = SampleCellB.reuseIdentifier
+				case .C: reuseIdentifier = SampleCellC.reuseIdentifier
 			}
 
-			return cell
+			return self.configureCell(reuseIdentifier: reuseIdentifier, with: sample, for: indexPath)
+		}
+
+		dataSource.supplementaryViewProvider = { [weak self] collectionView, kind, indexPath in
+
+			guard let sectionHeader = collectionView
+				.dequeueReusableSupplementaryView(ofKind: kind,
+												  withReuseIdentifier: SampleHeader.identifier,
+												  for: indexPath) as? SampleHeader else {
+				
+				assertionFailure("Unable to dequeue \(kind)")
+				return UICollectionReusableView()
+			}
+
+			guard let section = self?.dataSource.sectionIdentifier(for: indexPath.section) else {
+				
+				assertionFailure("Unable to find section at \(indexPath)")
+				return UICollectionReusableView()
+			}
+
+			sectionHeader.configure(title: section.title) { [weak self] in
+
+				self?.headerButtonAction(for: section)
+			}
+
+			return sectionHeader
 		}
 
 		return dataSource
 	}
 
-	func createLayout() -> UICollectionViewLayout {
+	func reloadData() {
 
-		let sectionProvider = {(sectionIndex: Int, layout: NSCollectionLayoutEnvironment) -> NSCollectionLayoutSection? in
+		var snapshot = Snapshot()
+		snapshot.appendSections(sections)
 
-			guard let sectionKind = Section(rawValue: sectionIndex) else {
-				return nil
+		for section in sections {
+			
+			if colapsedSections.contains(section.type) == false {
+				snapshot.appendItems(section.items, toSection: section)
 			}
-
-			let section: NSCollectionLayoutSection
-
-			switch sectionKind {
-
-				case .main:
-					
-					let itemSize = NSCollectionLayoutSize(
-						widthDimension: .fractionalWidth(1.0),
-						heightDimension: .fractionalHeight(1.0)
-					)
-
-					let item = NSCollectionLayoutItem(layoutSize: itemSize)
-					
-					let groupSize = NSCollectionLayoutSize(
-						widthDimension: .fractionalWidth(0.5),
-						heightDimension: .fractionalWidth(0.2)
-					)
-
-					let group = NSCollectionLayoutGroup.horizontal(
-						layoutSize: groupSize,
-						subitems: [item]
-					)
-					
-					section = NSCollectionLayoutSection(group: group)
-					section.orthogonalScrollingBehavior = .continuousGroupLeadingBoundary
-
-					//				case .list:
-					//					var configution = UICollectionLayoutListConfiguration(appearance: .insetGrouped)
-					//
-					//					configution.trailingSwipeActionsConfigurationProvider = { [weak self] indexPath in
-					//
-					//						guard let `self` = self else { return nil }
-					//
-					//						let selectedItem = self.dataSource.itemIdentifier(for: indexPath)
-					//						return self.deleteItemOnSwipe(item: selectedItem!)
-					//					}
-					//
-					//					section = NSCollectionLayoutSection.list(using: configution, layoutEnvironment: layout)
-					//
-					//				case .outline:
-					//					let configution = UICollectionLayoutListConfiguration(appearance: .plain)
-					//					section = NSCollectionLayoutSection.list(using: configution, layoutEnvironment: layout)
-
-			}
-
-			return section
 		}
 
-		return UICollectionViewCompositionalLayout(sectionProvider: sectionProvider)
+		dataSource.apply(snapshot)
+	}
+
+	func createCompositionLayout() -> UICollectionViewLayout {
+
+		let layout = UICollectionViewCompositionalLayout { sectionIndex, layoutEnvironment in
+
+			let section = self.sections[sectionIndex]
+
+			switch section.type {
+				
+				case .A: return self.createSectionA()
+				case .B: return self.createSectionB()
+				case .C: return self.createSectionC()
+			}
+		}
+
+		let configuration = UICollectionViewCompositionalLayoutConfiguration()
+		configuration.interSectionSpacing = 20
+
+		layout.configuration = configuration
+
+		return layout
+	}
+
+	func createSectionA() -> NSCollectionLayoutSection {
+
+		let itemSize = NSCollectionLayoutSize(
+			widthDimension: .fractionalWidth(1.0),
+			heightDimension: .fractionalHeight(1.0)
+		)
+
+		let layoutItem = NSCollectionLayoutItem(layoutSize: itemSize)
+		layoutItem.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 5, bottom: 0, trailing: 5)
+
+		let layoutGroupSize = NSCollectionLayoutSize(
+			widthDimension: .fractionalWidth(0.93),
+			heightDimension: .fractionalHeight(1/5)
+		)
+
+		let layoutGroup = NSCollectionLayoutGroup
+			.horizontal(
+				layoutSize: layoutGroupSize,
+				subitems: [layoutItem]
+			)
+
+		let layoutSection = NSCollectionLayoutSection(group: layoutGroup)
+		layoutSection.orthogonalScrollingBehavior = .groupPagingCentered
+
+		let layoutSectionHeader = createSectionHeader()
+		layoutSection.boundarySupplementaryItems = [layoutSectionHeader]
+
+		return layoutSection
+	}
+
+	func createSectionB() -> NSCollectionLayoutSection {
+
+		let itemSize = NSCollectionLayoutSize(
+			widthDimension: .fractionalWidth(1.0),
+			heightDimension: .fractionalHeight(1/3)
+		)
+
+		let layoutItem = NSCollectionLayoutItem(layoutSize: itemSize)
+		layoutItem.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 5, bottom: 5, trailing: 5)
+
+		let layoutGroupSize = NSCollectionLayoutSize(
+			widthDimension: .fractionalWidth(0.93),
+			heightDimension: .fractionalHeight(1/3)
+		)
+
+		let layoutGroup = NSCollectionLayoutGroup
+			.vertical(
+				layoutSize: layoutGroupSize,
+				subitems: [layoutItem]
+			)
+
+		let layoutSection = NSCollectionLayoutSection(group: layoutGroup)
+		layoutSection.orthogonalScrollingBehavior = .groupPagingCentered
+
+		let layoutSectionHeader = createSectionHeader()
+		layoutSection.boundarySupplementaryItems = [layoutSectionHeader]
+
+		return layoutSection
+	}
+
+	func createSectionC() -> NSCollectionLayoutSection {
+
+		let itemSize = NSCollectionLayoutSize(
+			widthDimension: .fractionalWidth(1),
+			heightDimension: .fractionalHeight(1/5)
+		)
+
+		let layoutItem = NSCollectionLayoutItem(layoutSize: itemSize)
+		layoutItem.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 20, bottom: 5, trailing: 20)
+
+		let layoutGroupSize = NSCollectionLayoutSize(
+			widthDimension: .fractionalWidth(1),
+			heightDimension: .estimated(200)
+		)
+
+		let layoutGroup = NSCollectionLayoutGroup.horizontal(
+			layoutSize: layoutGroupSize, subitems: [layoutItem])
+
+		let layoutSection = NSCollectionLayoutSection(group: layoutGroup)
+
+		let layoutSectionHeader = createSectionHeader()
+		layoutSection.boundarySupplementaryItems = [layoutSectionHeader]
+
+		return layoutSection
+	}
+
+	func createSectionHeader() -> NSCollectionLayoutBoundarySupplementaryItem {
+
+		let layoutSectionHeaderSize = NSCollectionLayoutSize(
+			widthDimension: .fractionalWidth(0.93),
+			heightDimension: .estimated(80)
+		)
+
+		let layoutSectionHeader = NSCollectionLayoutBoundarySupplementaryItem(
+			layoutSize: layoutSectionHeaderSize,
+			elementKind: UICollectionView.elementKindSectionHeader,
+			alignment: .top)
+
+		return layoutSectionHeader
+	}
+
+	func headerButtonAction(for section: Section) {
+
+		if colapsedSections.contains(section.type) {
+			
+			colapsedSections = colapsedSections.filter { $0 != section.type }
+
+		} else {
+
+			colapsedSections.append(section.type)
+		}
+
+		reloadData()
 	}
 }

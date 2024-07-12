@@ -1,5 +1,5 @@
 //
-//  SampleCell.swift
+//  SampleCellA.swift
 //  DiffableCollectionView
 //
 //  Created by João Campos on 11/07/2024.
@@ -7,9 +7,7 @@
 
 import UIKit
 
-final class SampleCell: UICollectionViewCell {
-
-	static let identifier = String(describing: SampleCell.self)
+final class SampleCellA: UICollectionViewCell, ConfigurableCell {
 
 	private let label = UILabel()
 	private let icon = UIImageView()
@@ -20,7 +18,6 @@ final class SampleCell: UICollectionViewCell {
 		super.init(frame: frame)
 
 		configureSubviews()
-		configureConstraints()
 	}
 
 	@available(*, unavailable)
@@ -28,10 +25,10 @@ final class SampleCell: UICollectionViewCell {
 		fatalError("init(coder:) has not been implemented")
 	}
 
-	func configure(text: String, systemName: String) {
+	func configure(with sample: Sample) {
 
-		label.text = text
-		icon.image = UIImage(systemName: systemName)
+		label.text = sample.title
+		icon.image = UIImage(systemName: sample.systemNameIcon)
 	}
 
 	override func prepareForReuse() {
@@ -43,35 +40,38 @@ final class SampleCell: UICollectionViewCell {
 	}
 }
 
-private extension SampleCell {
+private extension SampleCellA {
 
 	func configureSubviews() {
 
-		backgroundColor = .lightGray
+		backgroundColor = .quaternarySystemFill
 		layer.cornerRadius = 10
 
-		label.font = UIFont.preferredFont(forTextStyle: .body)
+		label.font = UIFont.preferredFont(forTextStyle: .headline)
+		label.textColor = .label
 		icon.contentMode = .scaleAspectFit
-
-		contentView.addSubview(stackView)
 
 		stackView.addArrangedSubview(label)
 		stackView.addArrangedSubview(icon)
 
 		stackView.translatesAutoresizingMaskIntoConstraints = false
-		stackView.distribution = .equalSpacing
-		stackView.alignment = .center
 		stackView.axis = .vertical
+		stackView.alignment = .center
+		stackView.distribution = .fillEqually
+
+		contentView.addSubview(stackView)
+
+		configureConstraints()
 	}
 
 	func configureConstraints() {
 
 		NSLayoutConstraint.activate([
 
-			stackView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-			stackView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-			stackView.topAnchor.constraint(equalTo: contentView.topAnchor),
-			stackView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+			stackView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 5),
+			stackView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -5),
+			stackView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 5),
+			stackView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -5),
 		])
 	}
 }
